@@ -1,15 +1,14 @@
 (() => {
   /**
-   * Reading Progress Reporter
-   * Reports reading percentage as user scrolls through EPUB content
-   * Designed for integration with React Native WebView
+   * Reading Progress Reporter + Jump-to-Progress
+   * Reports reading percentage and allows loading document at a specific scroll progress
    */
 
   const PROGRESS_INTERVAL = 500; // ms between progress updates
   let lastReportedProgress = -1;
   let progressTimer = null;
 
-  // Helper — calculate progress percentage
+  // Calculate reading progress (0-100)
   function getReadingProgress() {
     const scrollTop =
       document.documentElement.scrollTop || document.body.scrollTop;
@@ -20,7 +19,18 @@
     return Math.min(Math.max(progress, 0), 100);
   }
 
-  // Helper — send progress to React Native or log in browser
+  // Set document scroll to given progress (0-100) immediately
+  function goToProgress(progress) {
+    const clamped = Math.min(Math.max(progress, 0), 100);
+    const scrollHeight =
+      document.documentElement.scrollHeight -
+      document.documentElement.clientHeight;
+    const scrollPos = (clamped / 100) * scrollHeight;
+    window.scrollTo(0, scrollPos); // instantly jump
+    lastReportedProgress = clamped;
+  }
+
+  // Report progress to React Native or console
   function reportProgress(progress) {
     const rounded = Math.round(progress);
     if (rounded === lastReportedProgress) return; // skip duplicates
@@ -55,13 +65,14 @@
     }
   }
 
-  // React Native can control tracking (optional)
+  // Expose API
   window.ReadingProgress = {
     start: startTracking,
     stop: stopTracking,
     get: getReadingProgress,
+    goTo: goToProgress, // new function
   };
 
-  // Auto-start when DOM is ready
+  // Auto-start tracking when DOM is ready
   document.addEventListener("DOMContentLoaded", startTracking);
 })();
