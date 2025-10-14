@@ -10,9 +10,6 @@
   let isDragging = false;
   let triggered = false;
   let lockDirection = null; // 'horizontal' | 'vertical' | null
-  let tapTimeout = null;
-  const TAP_MAX_MOVEMENT = 20; // px threshold for tap
-  const TAP_MAX_TIME = 600; // ms threshold for tap duration
   let touchStartTime = 0;
 
   const body = document.body;
@@ -42,16 +39,17 @@
         Math.abs(deltaX) > Math.abs(deltaY) ? "horizontal" : "vertical";
     }
 
-    const shiftX = Math.max(Math.min(deltaX, maxShift), -maxShift);
-    const shiftY = Math.max(Math.min(deltaY, maxShift), -maxShift);
-    currentX = shiftX;
-    currentY = shiftY;
+    currentX = deltaX;
+    currentY = deltaY;
+
     // Only handle horizontal gestures
     if (lockDirection === "horizontal") {
-      e.preventDefault();
+      e.preventDefault(); // block scroll/selection only for horizontal
+      const shiftX = Math.max(Math.min(deltaX, maxShift), -maxShift);
       body.style.transform = `translateX(${shiftX}px)`;
       body.style.transition = "none";
     }
+    // if vertical or selection, do nothing → allows text selection
   };
 
   const handleTouchEnd = () => {
@@ -62,23 +60,23 @@
     const absShiftX = Math.abs(currentX);
     const absShiftY = Math.abs(currentY);
 
-    // ✅ Detect tap
-    if (
-      absShiftX < TAP_MAX_MOVEMENT &&
-      absShiftY < TAP_MAX_MOVEMENT &&
-      duration < TAP_MAX_TIME
-    ) {
-      console.log("👆 Tap detected!", absShiftX, absShiftY, duration);
+    // Tap detection
+    if (absShiftX < 20 && absShiftY < 20 && duration < 600) {
+      console.log("👆 Tap detected!");
     }
 
-    // ✅ Detect swipe direction
-    if (absShiftX > swipeTrigger && !triggered) {
+    // Swipe threshold detection
+    if (
+      lockDirection === "horizontal" &&
+      absShiftX > swipeTrigger &&
+      !triggered
+    ) {
       triggered = true;
       const direction = currentX > 0 ? "right" : "left";
       console.log(`✅ Swipe ${direction} detected!`);
     }
 
-    // Smoothly reset
+    // Smooth reset
     body.style.transition = "transform 0.35s ease";
     body.style.transform = "translateX(0)";
   };
