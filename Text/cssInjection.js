@@ -73,6 +73,7 @@
   const origPost = window.postMessage;
   window.postMessage = function () {
     /* noop */
+    console.log("No-Op triggered");
   };
 
   // Bridge is ready
