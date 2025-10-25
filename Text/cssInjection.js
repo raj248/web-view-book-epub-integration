@@ -13,27 +13,23 @@
   }
 
   // ---- Inject a <style> element for dynamic styles ----
-  function setInjectedCSS(cssText) {
-    const STYLE_ID = "rn-injected-style";
-    let styleEl = document.getElementById(STYLE_ID);
+  const STYLE_ID = "rn-injected-style";
+  let styleEl = null;
 
-    // Ensure viewport meta exists for mobile layout
-    if (!document.querySelector('meta[name="viewport"]')) {
-      const meta = document.createElement("meta");
-      meta.setAttribute("name", "viewport");
-      meta.setAttribute(
-        "content",
-        "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
-      );
-      document.head.appendChild(meta);
-    }
-
+  function ensureStyleEl() {
     if (!styleEl) {
-      styleEl = document.createElement("style");
-      styleEl.id = STYLE_ID;
-      (document.head || document.documentElement).appendChild(styleEl);
+      styleEl = document.getElementById(STYLE_ID);
+      if (!styleEl) {
+        styleEl = document.createElement("style");
+        styleEl.id = STYLE_ID;
+        (document.head || document.documentElement).appendChild(styleEl);
+      }
     }
-    styleEl.textContent = cssText || "";
+    return styleEl;
+  }
+
+  function setInjectedCSS(cssText) {
+    ensureStyleEl().textContent = cssText || "";
     console.log("✅ Style applied");
   }
 
@@ -59,6 +55,12 @@
           setInjectedCSS(obj.css || "");
           post({ type: "setStylesAck" });
           break;
+        case "updateStyle":
+          if (obj.selector && obj.styles) {
+            updateStyle(obj.selector, obj.styles);
+            post({ type: "updateStyleAck", selector: obj.selector });
+          }
+          break;
         default:
           break;
       }
@@ -67,13 +69,58 @@
     }
   }
 
+  // ---- Update individual styles dynamically ----
+  function updateStyle(selector, styles) {
+    ensureStyleEl();
+    let styleStr = "";
+
+    // Convert JS object to CSS string
+    for (const key in styles) {
+      if (styles.hasOwnProperty(key)) {
+        const prop = key.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase());
+        styleStr += `${prop}: ${styles[key]}; `;
+      }
+    }
+
+    // Add/replace CSS rule for the selector
+    const sheet = styleEl.sheet;
+    let found = false;
+
+    for (let i = 0; i < sheet.cssRules.length; i++) {
+      if (sheet.cssRules[i].selectorText === selector) {
+        sheet.deleteRule(i);
+        found = true;
+        break;
+      }
+    }
+
+    sheet.insertRule(`${selector} { ${styleStr} }`, sheet.cssRules.length);
+  }
+
+  // ---- Ensure viewport meta exists for mobile ----
+  if (!document.querySelector('meta[name="viewport"]')) {
+    const meta = document.createElement("meta");
+    meta.setAttribute("name", "viewport");
+    meta.setAttribute(
+      "content",
+      "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
+    );
+    document.head.appendChild(meta);
+  }
+
   // Listen to RN WebView messages
   document.addEventListener("message", handleMessageFromRN);
-  // Some RN wrappers also call window.postMessage directly
+
+  // Disable old postMessage
   const origPost = window.postMessage;
   window.postMessage = function () {
     /* noop */
-    console.log("No-Op triggered");
+  };
+
+  // ---- Expose API ----
+  window.RNStyleBridge = {
+    setCSS: setInjectedCSS,
+    update: updateStyle, // update individual styles dynamically
   };
 
   // Bridge is ready
